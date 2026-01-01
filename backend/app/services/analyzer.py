@@ -530,52 +530,66 @@ class ImageAnalyzer:
         """
         Analyze the image's tonal distribution and return control points for a tone curve.
         Returns a list of [x, y] points where x is input (0-100) and y is output (0-100).
+
+        The curve represents how tones are distributed in the image compared to a linear response.
         """
-        # Compute histogram
-        hist, _ = np.histogram(gray.flatten(), bins=256, range=(0, 256))
+        # Get key percentile values to understand tonal distribution
+        p0 = float(np.percentile(gray, 0))    # Absolute black
+        p2 = float(np.percentile(gray, 2))    # Near black (shadow point)
+        p10 = float(np.percentile(gray, 10))  # Deep shadows
+        p25 = float(np.percentile(gray, 25))  # Quarter tones
+        p50 = float(np.percentile(gray, 50))  # Midtones (median)
+        p75 = float(np.percentile(gray, 75))  # Three-quarter tones
+        p90 = float(np.percentile(gray, 90))  # Highlights
+        p98 = float(np.percentile(gray, 98))  # Near white (highlight point)
+        p100 = float(np.percentile(gray, 100)) # Absolute white
 
-        # Compute cumulative distribution function (CDF)
-        cdf = hist.cumsum()
-        cdf_normalized = cdf / cdf[-1]  # Normalize to 0-1
+        # Normalize percentiles to 0-100 scale
+        def normalize(val):
+            return (val / 255.0) * 100.0
 
-        # Sample the CDF at key points to create curve control points
-        # We sample at shadows, quarter-tones, midtones, three-quarter-tones, highlights
-        sample_points = [0, 32, 64, 96, 128, 160, 192, 224, 255]
+        # Build curve points: [input, output]
+        # Input is the "expected" linear position, output is where that tone actually falls
         curve_points = []
 
-        for input_val in sample_points:
-            # The CDF tells us what percentage of pixels are at or below this value
-            # We use this to derive the "output" value for the curve
-            output_val = cdf_normalized[input_val] * 100
-            input_normalized = (input_val / 255) * 100
-            curve_points.append([round(input_normalized, 1), round(output_val, 1)])
+        # Black point - where do the darkest 2% of pixels fall?
+        # If shadows are lifted, this won't be at 0
+        black_out = normalize(p2)
+        curve_points.append([0.0, max(0, black_out - 2)])  # Slight offset for visual
 
-        # Analyze characteristics for additional curve shaping
-        # Check if shadows are lifted (black point is raised)
-        black_point = np.percentile(gray, 2)
-        white_point = np.percentile(gray, 98)
+        # Shadow region
+        shadow_out = normalize(p10)
+        # Compare to linear expectation (10% of tones should be at ~25.5 brightness linearly)
+        curve_points.append([10.0, shadow_out])
 
-        # Adjust curve based on actual tonal range
-        if black_point > 20:  # Lifted shadows
-            # Raise the shadow portion of the curve
-            for i, pt in enumerate(curve_points):
-                if pt[0] < 25:
-                    lift_amount = (black_point / 255) * 100 * 0.5
-                    curve_points[i][1] = min(100, pt[1] + lift_amount * (1 - pt[0]/25))
+        # Quarter tones
+        quarter_out = normalize(p25)
+        curve_points.append([25.0, quarter_out])
 
-        if white_point < 235:  # Crushed highlights
-            # Lower the highlight portion
-            for i, pt in enumerate(curve_points):
-                if pt[0] > 75:
-                    crush_amount = ((255 - white_point) / 255) * 100 * 0.5
-                    curve_points[i][1] = max(0, pt[1] - crush_amount * ((pt[0] - 75) / 25))
+        # Midtones - this is key for contrast
+        mid_out = normalize(p50)
+        curve_points.append([50.0, mid_out])
 
-        # Ensure curve is valid (monotonically increasing, within bounds)
-        for i, pt in enumerate(curve_points):
-            curve_points[i][1] = max(0, min(100, pt[1]))
+        # Three-quarter tones
+        threequarter_out = normalize(p75)
+        curve_points.append([75.0, threequarter_out])
 
-        # Convert to list of floats for JSON serialization
-        return [[float(p[0]), float(p[1])] for p in curve_points]
+        # Highlight region
+        highlight_out = normalize(p90)
+        curve_points.append([90.0, highlight_out])
+
+        # White point - where do the brightest 2% of pixels fall?
+        white_out = normalize(p98)
+        curve_points.append([100.0, min(100, white_out + 2)])  # Slight offset for visual
+
+        # Ensure monotonically increasing and within bounds
+        for i in range(len(curve_points)):
+            curve_points[i][1] = max(0, min(100, curve_points[i][1]))
+            if i > 0:
+                # Ensure each point is at least as high as the previous
+                curve_points[i][1] = max(curve_points[i][1], curve_points[i-1][1])
+
+        return [[round(p[0], 1), round(p[1], 1)] for p in curve_points]
 
     def _generate_summary(self, camera: dict, lighting: dict, color: dict) -> str:
         return (
