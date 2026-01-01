@@ -16,6 +16,89 @@ function ColorPanel({ data, expanded = false }) {
     { label: 'Highlights', value: color.highlights },
   ]
 
+  // Generate and download .cube LUT file
+  const downloadLUT = () => {
+    const size = 17 // Standard LUT size
+    const toneCurve = color.toneCurve || [[0, 0], [50, 50], [100, 100]]
+
+    // Interpolate tone curve value
+    const applyToneCurve = (value) => {
+      const v = value * 100
+      for (let i = 0; i < toneCurve.length - 1; i++) {
+        const [x1, y1] = toneCurve[i]
+        const [x2, y2] = toneCurve[i + 1]
+        if (v >= x1 && v <= x2) {
+          const t = (v - x1) / (x2 - x1)
+          return (y1 + t * (y2 - y1)) / 100
+        }
+      }
+      return value
+    }
+
+    // Determine color adjustments from analysis
+    const isWarm = color.temperature?.toLowerCase().includes('warm')
+    const isCool = color.temperature?.toLowerCase().includes('cool')
+    const hasTealShadows = color.shadows?.toLowerCase().includes('teal')
+    const hasWarmHighlights = color.highlights?.toLowerCase().includes('warm')
+
+    let lutContent = `TITLE "Shot Match - Generated LUT"\n`
+    lutContent += `# Generated from image analysis\n`
+    lutContent += `LUT_3D_SIZE ${size}\n\n`
+
+    for (let b = 0; b < size; b++) {
+      for (let g = 0; g < size; g++) {
+        for (let r = 0; r < size; r++) {
+          let rVal = r / (size - 1)
+          let gVal = g / (size - 1)
+          let bVal = b / (size - 1)
+
+          // Apply tone curve
+          const luminance = 0.299 * rVal + 0.587 * gVal + 0.114 * bVal
+          const curveMultiplier = applyToneCurve(luminance) / (luminance || 0.001)
+
+          rVal = Math.min(1, rVal * curveMultiplier)
+          gVal = Math.min(1, gVal * curveMultiplier)
+          bVal = Math.min(1, bVal * curveMultiplier)
+
+          // Apply temperature shift
+          if (isWarm) {
+            rVal = Math.min(1, rVal * 1.05)
+            bVal = bVal * 0.95
+          } else if (isCool) {
+            rVal = rVal * 0.95
+            bVal = Math.min(1, bVal * 1.05)
+          }
+
+          // Apply shadow tint (affects darker values)
+          if (hasTealShadows && luminance < 0.4) {
+            const shadowAmount = (0.4 - luminance) / 0.4
+            gVal = Math.min(1, gVal + shadowAmount * 0.03)
+            bVal = Math.min(1, bVal + shadowAmount * 0.05)
+          }
+
+          // Apply highlight warmth (affects brighter values)
+          if (hasWarmHighlights && luminance > 0.6) {
+            const highlightAmount = (luminance - 0.6) / 0.4
+            rVal = Math.min(1, rVal + highlightAmount * 0.03)
+          }
+
+          lutContent += `${rVal.toFixed(6)} ${gVal.toFixed(6)} ${bVal.toFixed(6)}\n`
+        }
+      }
+    }
+
+    // Create and download file
+    const blob = new Blob([lutContent], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'shot-match.cube'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   // Generate SVG path from tone curve points
   // Points are [x, y] where x and y are 0-100, y needs to be flipped for SVG coordinates
   const generateCurvePath = (points) => {
@@ -62,7 +145,10 @@ function ColorPanel({ data, expanded = false }) {
           </div>
           <h3 className="text-lg font-semibold text-white">Color Grade</h3>
         </div>
-        <button className="px-3 py-1 text-xs font-medium text-amber-400 border border-amber-500/50 rounded-lg hover:bg-amber-500/10 transition-colors">
+        <button
+          onClick={downloadLUT}
+          className="px-3 py-1 text-xs font-medium text-amber-400 border border-amber-500/50 rounded-lg hover:bg-amber-500/10 transition-colors"
+        >
           Download LUT
         </button>
       </div>
