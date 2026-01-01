@@ -15,6 +15,14 @@ function CameraPanel({ data }) {
     { label: 'Sensor Size', value: camera.sensorSize, icon: '📷' },
   ]
 
+  // Add camera/lens info if available from EXIF
+  if (camera.camera) {
+    items.unshift({ label: 'Camera', value: camera.camera, icon: '📷' })
+  }
+  if (camera.lens) {
+    items.splice(camera.camera ? 1 : 0, 0, { label: 'Lens', value: camera.lens, icon: '🔍' })
+  }
+
   return (
     <div className="p-6 bg-slate-800/50 rounded-xl border border-slate-700/50">
       <div className="flex items-center gap-2 mb-4">
@@ -24,6 +32,15 @@ function CameraPanel({ data }) {
           </svg>
         </div>
         <h3 className="text-lg font-semibold text-white">Camera Settings</h3>
+        {camera.hasExif ? (
+          <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
+            EXIF Data
+          </span>
+        ) : (
+          <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
+            Estimated
+          </span>
+        )}
       </div>
 
       <div className="space-y-3">

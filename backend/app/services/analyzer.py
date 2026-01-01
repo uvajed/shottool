@@ -1,4 +1,5 @@
 from PIL import Image
+from PIL.ExifTags import TAGS, GPSTAGS
 import numpy as np
 from io import BytesIO
 from colorthief import ColorThief
@@ -6,6 +7,56 @@ import colorsys
 
 
 class ImageAnalyzer:
+    # Common EXIF tag IDs
+    EXIF_FOCAL_LENGTH = 37386
+    EXIF_FOCAL_LENGTH_35MM = 41989
+    EXIF_FNUMBER = 33437
+    EXIF_ISO = 34855
+    EXIF_EXPOSURE_TIME = 33434
+    EXIF_MAKE = 271
+    EXIF_MODEL = 272
+    EXIF_LENS_MODEL = 42036
+
+    def _extract_exif(self, image: Image.Image) -> dict:
+        """Extract EXIF metadata from image."""
+        exif_data = {}
+        try:
+            exif = image._getexif()
+            if exif:
+                for tag_id, value in exif.items():
+                    tag = TAGS.get(tag_id, tag_id)
+                    exif_data[tag] = value
+                    exif_data[tag_id] = value  # Also store by ID for reliable lookup
+        except (AttributeError, KeyError, TypeError):
+            pass
+        return exif_data
+
+    def _format_exposure_time(self, exposure) -> str:
+        """Format exposure time as a fraction."""
+        if exposure is None:
+            return None
+        try:
+            # Handle IFDRational or tuple
+            if hasattr(exposure, 'numerator'):
+                num, den = exposure.numerator, exposure.denominator
+            elif isinstance(exposure, tuple):
+                num, den = exposure
+            else:
+                val = float(exposure)
+                if val >= 1:
+                    return f"{val:.1f}s"
+                return f"1/{int(1/val)}s"
+
+            if num == 0:
+                return None
+            if den == 1:
+                return f"{num}s"
+            # Simplify fraction
+            if num == 1:
+                return f"1/{den}s"
+            return f"{num}/{den}s"
+        except (TypeError, ValueError, ZeroDivisionError):
+            return None
     def analyze(self, image_bytes: BytesIO) -> dict:
         image = Image.open(image_bytes)
         image_bytes.seek(0)
@@ -30,40 +81,89 @@ class ImageAnalyzer:
         width, height = image.size
         aspect_ratio = width / height
 
+        # First, try to extract EXIF data
+        exif = self._extract_exif(image)
+        has_exif = len(exif) > 0
+
         img_array = np.array(image.convert("L"))
 
-        # Estimate focal length based on perspective distortion analysis
-        focal_estimate, sensor_hint = self._estimate_focal_length(img_array, width, height)
-        edges = np.abs(np.diff(img_array.astype(float), axis=0))
-        edge_variance = np.var(edges)
+        # Focal Length - prefer EXIF
+        focal_exif = exif.get(self.EXIF_FOCAL_LENGTH) or exif.get('FocalLength')
+        focal_35mm = exif.get(self.EXIF_FOCAL_LENGTH_35MM) or exif.get('FocalLengthIn35mmFilm')
 
-        if edge_variance > 2000:
-            aperture = "f/5.6 - f/8 (Deep DoF)"
-            dof = "Deep"
-        elif edge_variance > 1000:
-            aperture = "f/2.8 - f/4"
-            dof = "Medium"
+        if focal_exif:
+            try:
+                focal_val = float(focal_exif)
+                if focal_35mm:
+                    focal_estimate = f"{focal_val:.0f}mm ({float(focal_35mm):.0f}mm equiv)"
+                else:
+                    focal_estimate = f"{focal_val:.0f}mm"
+                # Determine sensor hint based on focal length
+                if focal_val < 24:
+                    sensor_hint = "Ultra-wide angle lens"
+                elif focal_val < 35:
+                    sensor_hint = "Wide angle lens"
+                elif focal_val < 50:
+                    sensor_hint = "Wide-normal lens"
+                elif focal_val < 85:
+                    sensor_hint = "Standard lens"
+                elif focal_val < 135:
+                    sensor_hint = "Portrait/Short telephoto"
+                else:
+                    sensor_hint = "Telephoto lens"
+            except (TypeError, ValueError):
+                focal_estimate, sensor_hint = self._estimate_focal_length(img_array, width, height)
         else:
-            aperture = "f/1.4 - f/2.0 (Shallow DoF)"
-            dof = "Shallow"
+            focal_estimate, sensor_hint = self._estimate_focal_length(img_array, width, height)
 
-        brightness = np.mean(img_array)
-        if brightness > 150:
-            iso = "Low (100-400)"
-        elif brightness > 80:
-            iso = "Medium (400-1600)"
+        # Aperture - prefer EXIF
+        fnumber = exif.get(self.EXIF_FNUMBER) or exif.get('FNumber')
+        if fnumber:
+            try:
+                f_val = float(fnumber)
+                aperture = f"f/{f_val:.1f}"
+                if f_val <= 2.0:
+                    dof = "Shallow"
+                elif f_val <= 5.6:
+                    dof = "Medium"
+                else:
+                    dof = "Deep"
+            except (TypeError, ValueError):
+                aperture, dof = self._estimate_aperture(img_array)
         else:
-            iso = "Higher (1600+)"
+            aperture, dof = self._estimate_aperture(img_array)
 
-        motion_blur = self._detect_motion_blur(img_array)
-        if motion_blur > 0.7:
-            shutter = "Slow (1/30s or slower)"
-        elif motion_blur > 0.4:
-            shutter = "~1/60s - 1/125s"
+        # ISO - prefer EXIF
+        iso_exif = exif.get(self.EXIF_ISO) or exif.get('ISOSpeedRatings')
+        if iso_exif:
+            try:
+                # ISO can be a single value or a tuple
+                if isinstance(iso_exif, (list, tuple)):
+                    iso_val = int(iso_exif[0])
+                else:
+                    iso_val = int(iso_exif)
+                iso = f"ISO {iso_val}"
+            except (TypeError, ValueError, IndexError):
+                iso = self._estimate_iso(img_array)
         else:
-            shutter = "Fast (1/250s+)"
+            iso = self._estimate_iso(img_array)
 
-        return {
+        # Shutter Speed - prefer EXIF
+        exposure = exif.get(self.EXIF_EXPOSURE_TIME) or exif.get('ExposureTime')
+        shutter = self._format_exposure_time(exposure)
+        if not shutter:
+            shutter = self._estimate_shutter(img_array)
+
+        # Camera/Lens info
+        camera_make = exif.get(self.EXIF_MAKE) or exif.get('Make', '')
+        camera_model = exif.get(self.EXIF_MODEL) or exif.get('Model', '')
+        lens_model = exif.get(self.EXIF_LENS_MODEL) or exif.get('LensModel', '')
+
+        camera_info = None
+        if camera_make or camera_model:
+            camera_info = f"{camera_make} {camera_model}".strip()
+
+        result = {
             "focalLength": focal_estimate,
             "aperture": aperture,
             "depthOfField": dof,
@@ -71,7 +171,47 @@ class ImageAnalyzer:
             "shutterSpeed": shutter,
             "sensorSize": sensor_hint,
             "aspectRatio": f"{width}:{height}",
+            "hasExif": has_exif,
         }
+
+        if camera_info:
+            result["camera"] = camera_info
+        if lens_model:
+            result["lens"] = str(lens_model)
+
+        return result
+
+    def _estimate_aperture(self, img_array: np.ndarray) -> tuple:
+        """Estimate aperture from edge variance when EXIF not available."""
+        edges = np.abs(np.diff(img_array.astype(float), axis=0))
+        edge_variance = np.var(edges)
+
+        if edge_variance > 2000:
+            return "f/5.6 - f/8 (estimated)", "Deep"
+        elif edge_variance > 1000:
+            return "f/2.8 - f/4 (estimated)", "Medium"
+        else:
+            return "f/1.4 - f/2.0 (estimated)", "Shallow"
+
+    def _estimate_iso(self, img_array: np.ndarray) -> str:
+        """Estimate ISO from brightness when EXIF not available."""
+        brightness = np.mean(img_array)
+        if brightness > 150:
+            return "Low ISO (estimated)"
+        elif brightness > 80:
+            return "Medium ISO (estimated)"
+        else:
+            return "High ISO (estimated)"
+
+    def _estimate_shutter(self, img_array: np.ndarray) -> str:
+        """Estimate shutter speed from motion blur when EXIF not available."""
+        motion_blur = self._detect_motion_blur(img_array)
+        if motion_blur > 0.7:
+            return "Slow shutter (estimated)"
+        elif motion_blur > 0.4:
+            return "~1/60s - 1/125s (estimated)"
+        else:
+            return "Fast shutter (estimated)"
 
     def _detect_motion_blur(self, gray_image: np.ndarray) -> float:
         laplacian = np.abs(
@@ -373,6 +513,9 @@ class ImageAnalyzer:
         else:
             saturation = "Desaturated"
 
+        # Analyze tone curve from image histogram
+        tone_curve = self._analyze_tone_curve(gray)
+
         return {
             "palette": palette_hex,
             "temperature": temp,
@@ -380,7 +523,59 @@ class ImageAnalyzer:
             "saturation": saturation,
             "shadows": f"Lifted, {shadow_tint}",
             "highlights": highlight_tint,
+            "toneCurve": tone_curve,
         }
+
+    def _analyze_tone_curve(self, gray: np.ndarray) -> list:
+        """
+        Analyze the image's tonal distribution and return control points for a tone curve.
+        Returns a list of [x, y] points where x is input (0-100) and y is output (0-100).
+        """
+        # Compute histogram
+        hist, _ = np.histogram(gray.flatten(), bins=256, range=(0, 256))
+
+        # Compute cumulative distribution function (CDF)
+        cdf = hist.cumsum()
+        cdf_normalized = cdf / cdf[-1]  # Normalize to 0-1
+
+        # Sample the CDF at key points to create curve control points
+        # We sample at shadows, quarter-tones, midtones, three-quarter-tones, highlights
+        sample_points = [0, 32, 64, 96, 128, 160, 192, 224, 255]
+        curve_points = []
+
+        for input_val in sample_points:
+            # The CDF tells us what percentage of pixels are at or below this value
+            # We use this to derive the "output" value for the curve
+            output_val = cdf_normalized[input_val] * 100
+            input_normalized = (input_val / 255) * 100
+            curve_points.append([round(input_normalized, 1), round(output_val, 1)])
+
+        # Analyze characteristics for additional curve shaping
+        # Check if shadows are lifted (black point is raised)
+        black_point = np.percentile(gray, 2)
+        white_point = np.percentile(gray, 98)
+
+        # Adjust curve based on actual tonal range
+        if black_point > 20:  # Lifted shadows
+            # Raise the shadow portion of the curve
+            for i, pt in enumerate(curve_points):
+                if pt[0] < 25:
+                    lift_amount = (black_point / 255) * 100 * 0.5
+                    curve_points[i][1] = min(100, pt[1] + lift_amount * (1 - pt[0]/25))
+
+        if white_point < 235:  # Crushed highlights
+            # Lower the highlight portion
+            for i, pt in enumerate(curve_points):
+                if pt[0] > 75:
+                    crush_amount = ((255 - white_point) / 255) * 100 * 0.5
+                    curve_points[i][1] = max(0, pt[1] - crush_amount * ((pt[0] - 75) / 25))
+
+        # Ensure curve is valid (monotonically increasing, within bounds)
+        for i, pt in enumerate(curve_points):
+            curve_points[i][1] = max(0, min(100, pt[1]))
+
+        # Convert to list of floats for JSON serialization
+        return [[float(p[0]), float(p[1])] for p in curve_points]
 
     def _generate_summary(self, camera: dict, lighting: dict, color: dict) -> str:
         return (

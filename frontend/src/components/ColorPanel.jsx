@@ -16,6 +16,41 @@ function ColorPanel({ data, expanded = false }) {
     { label: 'Highlights', value: color.highlights },
   ]
 
+  // Generate SVG path from tone curve points
+  // Points are [x, y] where x and y are 0-100, y needs to be flipped for SVG coordinates
+  const generateCurvePath = (points) => {
+    if (!points || points.length < 2) {
+      // Fallback to linear curve
+      return "M 0 100 L 100 0"
+    }
+
+    // Convert points to SVG coordinates (flip Y axis)
+    const svgPoints = points.map(([x, y]) => [x, 100 - y])
+
+    // Create a smooth curve through the points using quadratic bezier
+    let path = `M ${svgPoints[0][0]} ${svgPoints[0][1]}`
+
+    for (let i = 1; i < svgPoints.length; i++) {
+      const prev = svgPoints[i - 1]
+      const curr = svgPoints[i]
+
+      // Use quadratic bezier for smooth curve
+      const cpX = (prev[0] + curr[0]) / 2
+      const cpY = prev[1]
+
+      if (i === 1) {
+        path += ` Q ${cpX} ${cpY}, ${curr[0]} ${curr[1]}`
+      } else {
+        path += ` T ${curr[0]} ${curr[1]}`
+      }
+    }
+
+    return path
+  }
+
+  const curvePath = generateCurvePath(color.toneCurve)
+  const fillPath = curvePath + " L 100 100 L 0 100 Z"
+
   return (
     <div className="p-6 bg-slate-800/50 rounded-xl border border-slate-700/50">
       <div className="flex items-center justify-between mb-4">
@@ -60,17 +95,30 @@ function ColorPanel({ data, expanded = false }) {
                   <stop offset="100%" stopColor="#ea580c" stopOpacity="0.3" />
                 </linearGradient>
               </defs>
+              {/* Reference diagonal line (linear response) */}
               <line x1="0" y1="100" x2="100" y2="0" stroke="#374151" strokeWidth="0.5" strokeDasharray="2,2" />
+              {/* Actual tone curve from image analysis */}
               <path
-                d="M 0 95 Q 15 85, 30 70 T 60 40 T 100 5"
+                d={curvePath}
                 fill="none"
                 stroke="url(#curveGradient)"
                 strokeWidth="2"
               />
               <path
-                d="M 0 95 Q 15 85, 30 70 T 60 40 T 100 5 L 100 100 L 0 100 Z"
+                d={fillPath}
                 fill="url(#curveGradient)"
               />
+              {/* Control points visualization */}
+              {color.toneCurve?.map(([x, y], i) => (
+                <circle
+                  key={i}
+                  cx={x}
+                  cy={100 - y}
+                  r="1.5"
+                  fill="#f59e0b"
+                  opacity="0.6"
+                />
+              ))}
             </svg>
             <div className="absolute bottom-2 left-2 text-xs text-slate-500">Shadows</div>
             <div className="absolute top-2 right-2 text-xs text-slate-500">Highlights</div>
