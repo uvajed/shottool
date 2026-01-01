@@ -61,7 +61,7 @@ function App() {
               </svg>
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">Shot Match</h1>
+              <h1 className="text-xl font-bold text-white">FrameMatch</h1>
               <p className="text-xs text-slate-400">Analyze & Recreate Any Shot</p>
             </div>
           </div>
@@ -109,7 +109,7 @@ function App() {
 
       <footer className="border-t border-slate-700/50 mt-auto">
         <div className="max-w-7xl mx-auto px-4 py-6 text-center text-sm text-slate-500">
-          Shot Match by e-studios | Powered by AI
+          FrameMatch by e-studios | Powered by AI
         </div>
       </footer>
     </div>

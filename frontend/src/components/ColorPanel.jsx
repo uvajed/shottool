@@ -41,7 +41,7 @@ function ColorPanel({ data, expanded = false }) {
     const hasTealShadows = color.shadows?.toLowerCase().includes('teal')
     const hasWarmHighlights = color.highlights?.toLowerCase().includes('warm')
 
-    let lutContent = `TITLE "Shot Match - Generated LUT"\n`
+    let lutContent = `TITLE "FrameMatch - Generated LUT"\n`
     lutContent += `# Generated from image analysis\n`
     lutContent += `LUT_3D_SIZE ${size}\n\n`
 

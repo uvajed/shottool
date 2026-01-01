@@ -1,5 +1,5 @@
 ---
-title: Shot Match
+title: FrameMatch
 emoji: 📷
 colorFrom: yellow
 colorTo: red
@@ -8,7 +8,7 @@ app_port: 7860
 pinned: false
 ---
 
-# Shot Match
+# FrameMatch
 
 AI-powered shot analysis tool for photographers and cinematographers.
 

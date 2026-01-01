@@ -1,90 +1,18 @@
-# Shot Match Tool
+# FrameMatch - Claude Code Guidelines
 
 ## Project Overview
 
-Shot Match is a web-based tool that analyzes reference images from films, photographs, or screenshots and provides users with actionable recreation guides. It leverages computer vision and machine learning to deconstruct technical and artistic elements of any image.
+FrameMatch is an AI-powered web tool for photographers and cinematographers that analyzes reference images and provides recreation guides with camera settings, lighting analysis, and color grading recommendations.
 
-## Target Users
-
-- Cinematographers & DPs - Pre-production reference matching
-- Photographers - Learning and recreation
-- YouTubers/Content creators - Achieving "film look"
-- Film students - Understanding craft
-- Colorists - Starting point for grades
-
-## Core User Flow
-
-1. **Upload**: User provides a reference image (film still, photograph, screenshot)
-2. **Analyze**: AI deconstructs technical and artistic elements
-3. **Deliver**: User receives actionable recreation guide
-
-## Analysis Capabilities
-
-### Camera & Lens Technical Properties
-- Focal length estimate (perspective distortion, field of view)
-- Aperture estimate (depth of field, bokeh characteristics)
-- Shutter speed hints (motion blur analysis)
-- ISO/noise profile (grain pattern analysis)
-
-### Lighting Analysis
-- Key light direction (shadow analysis, highlight placement)
-- Light quality (hard vs soft - shadow edge transition)
-- Lighting ratio (contrast between lit and shadow areas)
-- Color temperature (warm/cool, mixed lighting detection)
-- Lighting patterns (Rembrandt, butterfly, split, loop)
-
-### Color & Grade Analysis
-- Overall color palette extraction
-- Lift/gamma/gain estimates for shadow, midtone, highlight
-- Contrast curve shape
-- Saturation mapping
-- LUT approximation (downloadable LUT files)
-
-### Composition Analysis
-- Rule of thirds / golden ratio overlay
-- Leading lines detection
-- Subject placement and framing
-- Aspect ratio identification
+**Live deployments:**
+- Frontend: https://framematch.pages.dev (Cloudflare Pages)
+- Backend API: https://kingune-framematch.hf.space (HuggingFace Spaces)
 
 ## Tech Stack
 
-### Frontend
-- **React** - Interactive result visualization
-- **TailwindCSS** - Rapid UI development
-- **Canvas/WebGL** - Overlays, lighting diagrams
-
-### Backend
-- **Python (FastAPI)** - Image processing pipeline
-- **OpenCV** - Fundamental image analysis
-- **Pillow** - Image manipulation
-- **NumPy** - Numerical computations
-
-## Project Structure
-
-```
-shottool/
-├── frontend/          # React application
-│   ├── src/
-│   │   ├── components/
-│   │   ├── pages/
-│   │   └── utils/
-│   └── public/
-├── backend/           # FastAPI server
-│   ├── app/
-│   │   ├── api/
-│   │   ├── services/
-│   │   └── models/
-│   └── requirements.txt
-└── claude.md
-```
-
-## MVP Features (v1.0)
-
-- [x] Image upload + basic processing pipeline
-- [x] Focal length estimation
-- [x] Lighting direction analysis
-- [x] Color palette extraction
-- [x] Simple results page with visual diagrams
+- **Frontend**: React 19 + Vite 7 + TailwindCSS 4
+- **Backend**: Python 3.12 + FastAPI + Pillow + NumPy + ColorThief
+- **Deployment**: Cloudflare Pages (frontend), HuggingFace Spaces with Docker (backend)
 
 ## Development Commands
 
@@ -92,25 +20,107 @@ shottool/
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run dev          # Start dev server at localhost:5173
+npm run build        # Build for production
+npm run lint         # Run ESLint
 ```
 
 ### Backend
 ```bash
 cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --port 8000
+```
+
+### Docker (HuggingFace Spaces)
+```bash
+# Build combined container (serves both frontend and backend)
+docker build -t framematch .
+docker run -p 7860:7860 framematch
+```
+
+## Project Structure
+
+```
+framematch/
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx                    # Main app with upload flow
+│   │   ├── main.jsx                   # React entry point
+│   │   └── components/
+│   │       ├── ImageUploader.jsx      # Drag-drop image upload
+│   │       ├── LoadingAnalysis.jsx    # Loading spinner
+│   │       ├── AnalysisResults.jsx    # Results container
+│   │       ├── CameraPanel.jsx        # Camera settings display
+│   │       ├── LightingPanel.jsx      # Lighting analysis display
+│   │       ├── ColorPanel.jsx         # Color palette display
+│   │       └── LightingDiagram.jsx    # Visual lighting diagram
+│   └── package.json
+├── backend/
+│   ├── app/
+│   │   ├── main.py                    # FastAPI endpoints
+│   │   └── services/
+│   │       └── analyzer.py            # ImageAnalyzer class
+│   ├── requirements.txt
+│   └── Dockerfile
+├── Dockerfile                         # Combined Docker for HF Spaces
+├── render.yaml                        # Render deployment config
+└── README.md                          # HuggingFace Spaces metadata
 ```
 
 ## API Endpoints
 
-- `POST /api/analyze` - Upload and analyze an image
-- `GET /api/analysis/{id}` - Get analysis results
-- `GET /api/health` - Health check
+- `POST /api/analyze` - Upload image, returns analysis JSON
+- `GET /api/health` - Health check endpoint
 
-## Key Technical Approaches
+## Key Analysis Features
 
-1. **Focal Length Estimation**: Analyze perspective distortion patterns
-2. **Lighting Detection**: Shadow mapping + highlight analysis
-3. **Color Analysis**: Extract dominant colors and generate LUT approximations
-4. **Accuracy**: Provide ranges, not false precision (e.g., "f/2 - f/2.8")
+### Camera Analysis (`backend/app/services/analyzer.py:29`)
+- **Focal length estimation**: Uses edge sharpness falloff, vignetting, and gradient variance to detect wide vs telephoto lenses
+- **Aperture/DoF**: Based on edge variance in grayscale image
+- **ISO hint**: Based on overall brightness
+- **Shutter speed**: Motion blur detection via Laplacian variance
+
+### Lighting Analysis (`backend/app/services/analyzer.py:205`)
+- Key light direction (left/right/frontal) via brightness comparison
+- Vertical angle estimation
+- Light quality (hard/soft) via contrast measurement
+- Lighting patterns: Split, Rembrandt, Butterfly, Loop
+
+### Color Analysis (`backend/app/services/analyzer.py:312`)
+- Color palette extraction using ColorThief
+- Temperature detection (warm/cool/neutral)
+- Shadow and highlight tint analysis
+- Saturation and contrast levels
+
+## Environment Variables
+
+- `VITE_API_URL` - Backend API URL for frontend (empty for same-origin in Docker)
+
+## Deployment Notes
+
+### Cloudflare Pages (Frontend)
+- Deploy from `frontend` directory
+- Build command: `npm run build`
+- Output directory: `dist`
+- Set `VITE_API_URL=https://kingune-framematch.hf.space` in environment
+
+### HuggingFace Spaces (Backend)
+- Uses root `Dockerfile` for combined deployment
+- SDK: Docker
+- Port: 7860
+- Nginx proxies `/api` to uvicorn on port 8000
+
+## Known Issues & Solutions
+
+1. **JSON serialization errors with numpy**: Wrap numpy boolean comparisons with `bool()` before returning in API responses
+2. **scipy installation failures on HF Spaces**: Avoid scipy dependency; use simple algorithms instead
+3. **Focal length always showing same value**: The `_estimate_focal_length` method analyzes edge sharpness falloff, vignetting, and gradient variance
+
+## Code Style
+
+- Frontend: React functional components with hooks, amber/orange color theme (avoid purple/violet)
+- Backend: Python type hints, descriptive method names
+- Keep dependencies minimal for HF Spaces compatibility

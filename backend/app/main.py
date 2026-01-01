@@ -6,7 +6,7 @@ import io
 from app.services.analyzer import ImageAnalyzer
 
 app = FastAPI(
-    title="Shot Match API",
+    title="FrameMatch API",
     description="Analyze reference images and provide recreation guides",
     version="1.0.0"
 )
@@ -24,7 +24,7 @@ analyzer = ImageAnalyzer()
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "healthy", "service": "shot-match-api"}
+    return {"status": "healthy", "service": "framematch-api"}
 
 
 @app.post("/api/analyze")
