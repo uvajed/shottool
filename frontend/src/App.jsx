@@ -54,15 +54,24 @@ function App() {
       <header className="border-b border-slate-700/50 bg-slate-900/50 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-purple-500/30">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-600 via-rose-600 to-red-700 flex items-center justify-center shadow-lg shadow-red-500/30">
               <svg className="w-8 h-8" viewBox="0 0 32 32" fill="none">
-                {/* Back frame - offset for depth */}
-                <rect x="3" y="5" width="16" height="12" rx="2" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" />
-                {/* Front frame - main */}
-                <rect x="8" y="10" width="16" height="12" rx="2" stroke="white" strokeWidth="2" fill="rgba(255,255,255,0.15)" />
-                {/* Lens/aperture centered */}
-                <circle cx="16" cy="16" r="4.5" stroke="white" strokeWidth="1.5" fill="none" />
-                <circle cx="16" cy="16" r="1.75" fill="white" />
+                {/* Eye outline */}
+                <path
+                  d="M2 16C2 16 7 6 16 6C25 6 30 16 30 16C30 16 25 26 16 26C7 26 2 16 2 16Z"
+                  stroke="white"
+                  strokeWidth="1.5"
+                  fill="rgba(255,255,255,0.1)"
+                  strokeLinejoin="round"
+                />
+                {/* Iris outer ring */}
+                <circle cx="16" cy="16" r="6" stroke="white" strokeWidth="1.5" fill="rgba(255,255,255,0.15)" />
+                {/* Iris inner detail */}
+                <circle cx="16" cy="16" r="3.5" stroke="rgba(255,255,255,0.7)" strokeWidth="1" fill="none" />
+                {/* Pupil */}
+                <circle cx="16" cy="16" r="2" fill="white" />
+                {/* Highlight reflection */}
+                <circle cx="18" cy="14" r="1" fill="white" opacity="0.6" />
               </svg>
             </div>
             <div>
