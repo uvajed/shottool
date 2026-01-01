@@ -54,15 +54,17 @@ function App() {
       <header className="border-b border-slate-700/50 bg-slate-900/50 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
-              <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                {/* Film frame corners */}
-                <path strokeLinecap="round" d="M4 4h4M4 4v4M20 4h-4M20 4v4M4 20h4M4 20v-4M20 20h-4M20 20v-4" />
-                {/* Center crosshair/target */}
-                <circle cx="12" cy="12" r="4" />
-                <circle cx="12" cy="12" r="1.5" fill="currentColor" />
-                {/* Crosshair lines */}
-                <path strokeLinecap="round" d="M12 6v2M12 16v2M6 12h2M16 12h2" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500 flex items-center justify-center shadow-lg shadow-orange-500/25">
+              <svg className="w-6 h-6" viewBox="0 0 32 32" fill="none">
+                {/* Back frame - slightly offset */}
+                <rect x="6" y="8" width="16" height="12" rx="2" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" />
+                {/* Front frame - main */}
+                <rect x="10" y="12" width="16" height="12" rx="2" stroke="white" strokeWidth="2" fill="rgba(255,255,255,0.1)" />
+                {/* Aperture blades in center of front frame */}
+                <g transform="translate(18, 18)">
+                  <circle r="4" stroke="white" strokeWidth="1.5" fill="none" />
+                  <circle r="1.5" fill="white" />
+                </g>
               </svg>
             </div>
             <div>
