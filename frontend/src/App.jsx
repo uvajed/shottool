@@ -125,7 +125,7 @@ function App() {
           </span>
           <span className="hidden sm:inline">|</span>
           <a
-            href="https://paypal.me/elvisibrahimi"
+            href="https://paypal.me/elvisbrahm"
             target="_blank"
             rel="noopener noreferrer"
             className="text-amber-500 hover:text-amber-400 transition-colors"
