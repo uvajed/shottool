@@ -69,7 +69,7 @@ function App() {
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             {/* Logo */}
-            <div className="flex items-center gap-4">
+            <button onClick={handleReset} className="flex items-center gap-4 cursor-pointer hover:opacity-80 transition-opacity">
               <div className="relative">
                 {/* Lens/aperture icon */}
                 <div className="w-11 h-11 rounded-full flex items-center justify-center"
@@ -93,7 +93,7 @@ function App() {
                   Shot Analysis System
                 </p>
               </div>
-            </div>
+            </button>
 
             {/* Status indicator & actions */}
             <div className="flex items-center gap-6">
